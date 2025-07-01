@@ -1,0 +1,1700 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tesis: Grafos de Conocimiento</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'c0': '#440154',
+                        'c1': '#482475',
+                        'c2': '#414487',
+                        'c3': '#355f8d',
+                        'c4': '#2a788e',
+                        'c5': '#21918c',
+                        'c6': '#27ad81',
+                        'c7': '#5cc863',
+                        'c8': '#aadc32',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --c0: #440154;
+            --c1: #482475;
+            --c2: #414487;
+            --c3: #355f8d;
+            --c4: #2a788e;
+            --c5: #21918c;
+            --c6: #27ad81;
+            --c7: #5cc863;
+            --c8: #aadc32;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            overflow: auto;
+            background-color: #0f172a;
+        }
+        
+        .slide {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.8s ease-in-out;
+            padding: 2rem;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        
+        .slide.active {
+            opacity: 1;
+            pointer-events: all;
+            z-index: 10;
+        }
+        
+        .graph-paper-bg {
+            background-image: 
+                linear-gradient(rgba(30, 41, 59, 0.5) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(30, 41, 59, 0.5) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+        
+        .blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(60px);
+            opacity: 0.15;
+            z-index: -1;
+        }
+        
+        .fade {
+            opacity: 0;
+            transform: translateY(24px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        
+        .slide.active .fade {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .graph-bullets li {
+            position: relative;
+            padding-left: 1.5rem;
+            margin-bottom: 0.75rem;
+            transition: all 0.3s ease;
+        }
+        
+        .graph-bullets li:before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0.5rem;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--c5);
+            transition: all 0.3s ease;
+        }
+
+        .graph-bullets li.paragraph-highlight {
+            color: white;
+        }
+
+        .graph-bullets li.paragraph-highlight:before {
+            background-color: var(--c8);
+            transform: scale(1.3);
+        }
+
+        .graph-bullets li.paragraph-lowlight {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .highlight {
+            color: white;
+            font-weight: 500;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+        
+        .highlight-keyword {
+            color: #FFD700;
+            font-weight: 600;
+            padding: 2px 2px;
+            border-radius: 0 px;
+            text-shadow: 0 0 2px rgba(255, 215, 0, 0.5);
+        }
+        
+        .lowlight {
+            color: rgba(255, 255, 255, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .paragraph-highlight {
+            opacity: 1;
+            color: white !important; 
+            transition: all 0.3s ease;
+        }
+
+        .paragraph-lowlight {
+            opacity: 1;
+            color: rgba(255, 255, 255, 0.5);
+            transition: all 0.3s ease;
+        }
+        
+        .nav-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .nav-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+        }
+        
+        .node {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .node:hover {
+            stroke-width: 3px;
+            stroke: white;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        @media (max-width: 768px) {
+            .slide {
+                padding: 1rem;
+            }
+            
+            .nav-btn {
+                width: 40px;
+                height: 40px;
+            }
+            
+            h1 {
+                font-size: 1.8rem !important;
+            }
+            
+            h2 {
+                font-size: 1.4rem !important;
+            }
+        }
+    </style>
+</head>
+<body class="graph-paper-bg text-slate-100">
+    <!-- Blob decorations -->
+    <div class="blob w-80 h-80 bg-[var(--c2)] top-20 left-10"></div>
+    <div class="blob w-64 h-64 bg-[var(--c5)] bottom-40 right-20"></div>
+    <div class="blob w-96 h-96 bg-[var(--c8)] top-1/3 right-1/4"></div>
+    
+    <!-- Slides container -->
+    <div id="slides-container">
+        <!-- Slide 0: Portada -->
+        <section class="slide active" id="slide-0">
+            <div class="absolute inset-0" id="cover-graph"></div>
+            <div class="relative z-20 flex flex-col items-center justify-center h-full text-center">
+                <h1 id="animated-title" class="text-3xl md:text-4xl font-bold mb-6 fade px-4 py-2 rounded-lg" style="background-color: rgba(15, 23, 42, 0.7);">
+                    Representación mediante grafos de conocimiento de trayectorias académicas y producción científica de becarios/as de doctorado BECAS CHILE y CONICYT (2014-2016) en disciplinas STEM y Ciencias Sociales
+                </h1>
+                <h2 class="text-xl md:text-2xl font-light mb-4 fade px-4 py-2 rounded-lg bg-slate-900 bg-opacity-70">Presentación seminario I</h2>
+                
+                <div class="mb-8 fade px-6 py-4 rounded-lg bg-slate-900 bg-opacity-70">
+                    <p class="text-lg">Autor: Rodrigo Molina Ávila</p>
+                    <p class="text-lg">Profesor Guía: Sebastián Ferrada Aliaga</p>
+                    <p class="text-lg">Profesora Co-guía: Roxana Chiappa Baros</p>
+                </div>
+                
+                <button id="start-btn" class="fade bg-gradient-to-r from-[var(--c5)] to-[var(--c7)] text-white px-8 py-3 rounded-full font-medium text-lg flex items-center transition-all hover:scale-105">
+                    <i class="fas fa-play mr-2"></i> Iniciar Presentación
+                </button>
+                
+                <div class="flex flex-wrap justify-center items-center w-full mt-8 fade gap-8">
+                    <div class="flex justify-center">
+                        <img src="https://idia.uchile.cl/wp-content/uploads/2025/04/Logo-IDIA-_Blanco_Horizontal-1.png" alt="IDIA" class="h-20">
+                    </div>
+                    <div class="flex justify-center">
+                        <img src="https://ingenieria.uchile.cl/.resources/portal-ingenieria/images/logo-fcfm.svg" alt="Universidad de Chile" class="h-16">
+                    </div>
+                    <div class="flex justify-center">
+                        <img src="https://mds.uchile.cl/wp-content/uploads/2020/04/logo_mds_web_w_01.svg" alt="MDS" class="h-16">
+                    </div>
+                    <div class="flex justify-center">
+                        <img src="https://raw.githubusercontent.com/RodrigoMolinaAvila/web_resources/refs/heads/main/webresources/fond.svg" alt="Logo adicional" class="h-20">
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Slide 1: Introducción -->
+        <section class="slide" id="slide-1">
+            <div class="max-w-4xl mx-auto h-full flex flex-col justify-center">
+                <h1 class="text-4xl font-bold mb-8 text-[var(--c6)] fade">Introducción</h1>
+                <div class="fade mb-6">
+                    <p class="text-lg mb-4">Parte del Proyecto Fondecyt Iniciación 11241304: "Re-conociendo las desigualdades de la Academia Chilena: Un análisis interseccional de género y clase en las trayectorias de personas con doctorado".</p> 
+                    <p class="text-lg mb-4">Analiza las trayectorias académicas y producción científica de becarios/as de doctorado BECAS CHILE y CONICYT (2014-2016)</p>
+                    <p class="text-lg">Desde una perspectiva interseccional (Crenshaw, 1989; McCall, 2005), examinamos cómo clase social y género configuran diferencialmente las trayectorias formativas y producción científica.</p>
+                </div>
+                <div class="fade">
+                    <h2 class="text-2xl font-semibold mb-4 mt-8 text-[var(--c5)]">Problema Central</h2>
+                    <p class="text-lg">La falta de herramientas metodológicas para representar estructuradamente estas trayectorias limita el análisis de desigualdades en la acumulación de capital académico y legitimación epistémica (Collins, 2019; Rodríguez & Archer, 2022).</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Slide 2: Antecedentes -->
+        <section class="slide" id="slide-2">
+            <div class="max-w-4xl mx-auto h-full flex flex-col justify-center">
+                <h1 class="text-4xl font-bold mb-8 text-[var(--c6)] fade">Antecedentes: Grupos de Interés</h1>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="fade">
+                        <h2 class="text-xl font-semibold mb-3 text-[var(--c5)]">STEM</h2>
+                        <ul class="graph-bullets">
+                                                      <li>Solo un 19.7% de las matriculas del 2023 corresponden a mujeres STEM (Mineduc, 2023)</li>
+                            <li>Acceso mediado por establecimiento escolar (proxy de clase) y género (Chiappa & Pérez, 2019)</li>
+                            <li>Barreras para acceder a universidades de élite y redes académicas</li>
+                        </ul>
+                        <div class="mt-4 p-4 bg-slate-800 rounded-lg">
+                            <p class="text-sm italic">"La baja representación femenina no es un fenómeno contingente, sino resultado de una organización histórica del campo disciplinar que refuerza la hegemonía masculina"</p>
+                        </div>
+                    </div>
+                    <div class="fade">
+                        <h2 class="text-xl font-semibold mb-3 text-[var(--c5)]">Ciencias Sociales</h2>
+                        <ul class="graph-bullets">
+                            <li>Baja visibilidad internacional (Guzmán-Valenzuela et al., 2022)</li>
+                            <li>Dependencia epistémica (Connell, 2007)</li>
+                            <li>Segmentación temática</li>
+                        </ul>
+                                                <div class="mt-4 p-4 bg-slate-800 rounded-lg">
+                            <p class="text-sm italic">"La combinación de ambos campos permite contrastar patrones diferenciados de inserción, prestigio y especialización disciplinar, ampliando la capacidad de análisis de las desigualdades en la academia chilena"</p>
+                        </div>
+                        <div class="mt-4" id="stem-vs-social-sciences"></div>
+                    </div>
+                </div>
+                <div class="mt-8 fade">
+                    <h2 class="text-xl font-semibold mb-3 text-[var(--c5)] text-center">Recursos</h2>
+                    <div id="resources-graph" class="w-full h-64 mt-[-40px]"></div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Slide 3: Pregunta de Investigación -->
+        <section class="slide" id="slide-3">
+            <div class="max-w-4xl mx-auto h-full flex flex-col justify-center">
+                <h1 class="text-4xl font-bold mb-8 text-[var(--c6)] fade">Pregunta de Investigación</h1>
+                <div class="bg-gradient-to-br from-[var(--c1)] to-[var(--c3)] p-8 rounded-2xl fade">
+                    <p class="text-2xl font-semibold text-center">¿Cómo incide el posicionamiento interseccional de <span class="highlight-keyword">clase social</span> y <span class="highlight-keyword">género</span> en la <span class="highlight-keyword">configuración temática</span>, <span class="highlight-keyword">estructural</span> e <span class="highlight-keyword">institucional</span> de la producción científica de los/as becarios/as doctorales en Chile (2024-2026), según representaciones mediante <span class="highlight-keyword">grafos de conocimiento</span>?</p>
+                </div>
+
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        
+        <!-- Slide 5: Objetivos -->
+        <section class="slide" id="slide-4">
+            <div class="max-w-4xl mx-auto h-full flex flex-col justify-center">
+                <h1 class="text-4xl font-bold mb-8 text-[var(--c6)] fade">Objetivos</h1>
+                
+                <div class="fade mb-6">
+                    <h2 class="text-2xl font-semibold mb-4 text-[var(--c5)]">Objetivo General</h2>
+                    <ul class="graph-bullets">
+                        <li>
+                            Comprender cómo el posicionamiento interseccional de 
+                            <span class="highlight-keyword">clase social</span> y 
+                            <span class="highlight-keyword">género</span> incide en la 
+                            <span class="highlight-keyword">configuración temática</span> de la producción científica de los/as becarios/as doctorales chilenos/as de disciplinas 
+                            <span class="highlight-keyword">STEM</span> y 
+                            <span class="highlight-keyword">Ciencias Sociales</span>, a partir de representaciones estructuradas mediante 
+                            <span class="highlight-keyword">grafos de conocimiento</span>.
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="fade">
+                    <h2 class="text-2xl font-semibold mb-4 text-[var(--c5)]">Objetivos Específicos</h2>
+                    <ul class="graph-bullets">
+                        <li>
+                            Identificar las <span class="highlight-keyword">entidades</span>, 
+                            <span class="highlight-keyword">atributos</span> y 
+                            <span class="highlight-keyword">vínculos</span> relevantes que caracterizan las trayectorias académicas de los/as becarios/as, considerando variables 
+                            <span class="highlight-keyword">sociodemográficas</span>, 
+                            <span class="highlight-keyword">institucionales</span> y de 
+                            <span class="highlight-keyword">producción científica</span>.
+                        </li>
+                        <li>
+                            Conocer las formas de asociación entre atributos sociales (<span class="highlight-keyword">clase social</span>, <span class="highlight-keyword">género</span>) y áreas temáticas de investigación, diferenciando las configuraciones disciplinares entre <span class="highlight-keyword">STEM</span> y <span class="highlight-keyword">Ciencias Sociales</span>.
+                        </li>
+                        <li>
+                            Explorar las estructuras generadas por los <span class="highlight-keyword">grafos de conocimiento</span>, focalizando en <span class="highlight-keyword">patrones de movilidad</span>, <span class="highlight-keyword">segmentación temática</span>, <span class="highlight-keyword">jerarquización institucional</span> y <span class="highlight-keyword">desigualdad epistémica interseccional</span>.
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 6: Metodología - Parte 1 -->
+        <section class="slide" id="slide-5">
+            <div class="max-w-4xl mx-auto h-full flex flex-col justify-center">
+                <h1 class="text-4xl font-bold mb-8 text-[var(--c6)] fade">Metodología</h1>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="fade">
+                        <div class="bg-gradient-to-br from-[var(--c1)] to-[var(--c3)] p-6 rounded-2xl h-full">
+                            <h2 class="text-xl font-semibold mb-4 text-[var(--c8)]">Enfoque Metodológico</h2>
+                            <ul class="graph-bullets">
+                                <li>Estudio <span class="highlight-keyword">cuantitativo</span> de tipo <span class="highlight-keyword">exploratorio</span></li>
+                                <li>Representación mediante <span class="highlight-keyword">grafos de conocimiento</span></li>
+                                <li>Integración de datos multifuente:
+                                    <ul class="ml-6 mt-2">
+                                        <li>Portal de Transparencia</li>
+                                        <li>Ministerio de Edducación</li>
+                                        <li>Scopus API</li>
+                                        <li>GitHub ANID</li>
+                                        <li>Comisión Nacional de Acreditación</li>
+                                        <li>Webscraping: Shanghái y QS</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="fade">
+                        <div class="bg-gradient-to-br from-[var(--c4)] to-[var(--c6)] p-6 rounded-2xl h-full">
+                            <h2 class="text-xl font-semibold mb-4 text-[var(--c8)]">Modelado Conceptual</h2>
+                            <ul class="graph-bullets">
+                                <li>Diagramación <span class="highlight-keyword">entidad-relación</span> (Chen, 1976)</li>
+                                <li>Identificación de:
+                                    <ul class="ml-6 mt-2">
+                                        <li><span class="highlight-keyword">Entidades</span>: personas, instituciones, publicaciones</li>
+                                        <li><span class="highlight-keyword">Atributos</span>: género, clase social, ranking</li>
+                                        <li><span class="highlight-keyword">Relaciones</span>: formación, afiliación, financiamiento</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-8 fade">
+                    <div class="bg-slate-800 bg-opacity-70 p-6 rounded-2xl">
+                        <h2 class="text-xl font-semibold mb-3 text-[var(--c5)]">Herramienta de Validación Estructural</h2>
+                        <p>Utilización de herramientas como <a href="https://erdoc.dcc.uchile.cl/es" class="text-[var(--c6)] hover:underline" target="_blank">ERDoc</a> para visualizar preliminarmene el modelo de grafo</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 8: Trabajo Futuro -->
+        <section class="slide" id="slide-6">
+            <div class="max-w-4xl mx-auto h-full flex flex-col justify-center">
+                <h1 class="text-4xl font-bold mb-8 text-[var(--c6)] fade">Metodología</h1>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="fade">
+                        <div class="bg-gradient-to-br from-[var(--c2)] to-[var(--c5)] p-6 rounded-2xl h-full">
+                            <h2 class="text-xl font-semibold mb-4 text-[var(--c8)]">Construcción del Grafo</h2>
+                            <ul class="graph-bullets">
+                                <li>Base de <span class="highlight-keyword">3.143 becarios/as</span></li>
+                                <li>Nodos: Becario, Secundaria, Pregrado, Posgrado, Tiene Publicaciones Académicas, Publica</li>
+                                <li>Aristas: "estudió en", "publicó en", "financiado por", "colaboro con", etc. </li>
+                                <li>Atributos: género, clase social, ranking, indicadores bibliométricos, sociodemográficos </li>
+                                <li>Software: <span class="highlight-keyword">Neo4j</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="fade">
+                        <div class="bg-gradient-to-br from-[var(--c3)] to-[var(--c7)] p-6 rounded-2xl h-full">
+                            <h2 class="text-xl font-semibold mb-4 text-[var(--c8)]">Análisis Estructural</h2>
+                            <ul class="graph-bullets">
+                                <li>Algoritmos de <span class="highlight-keyword">detección de comunidades</span> (Leiden)</li>
+                                <li>Métricas de <span class="highlight-keyword">centralidad</span> (closeness, betwenness)</li>
+                                <li>Agrupamientos por <span class="highlight-keyword">co-ocurrencias</span> temáticas</li>
+                                <li>Identificación de <span class="highlight-keyword">trayectorias dominantes</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-8 fade">
+                    <div class="bg-slate-800 bg-opacity-70 p-6 rounded-2xl">
+                        <h2 class="text-xl font-semibold mb-3 text-[var(--c5)]">Justificación</h2>
+                        <p>Los grafos permiten modelar fenómenos complejos revelando dinámicas latentes no visibles en enfoques tabulares (Bro y Mendoza, 2021). Innovación metodológica para analizar desigualdades desde una perspectiva interseccional.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- Slide 7: Métodos de Análisis Estructural -->
+        <section class="slide" id="slide-8">
+            <div class="max-w-4xl mx-auto h-full flex flex-col justify-center">
+                <h1 class="text-4xl font-bold mb-8 text-[var(--c6)] fade">Métodos de Análisis Estructural</h1>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Método A -->
+                    <div class="fade">
+                        <div class="bg-gradient-to-br from-[var(--c1)] to-[var(--c3)] p-6 rounded-2xl h-full">
+                            <h2 class="text-xl font-semibold mb-4 text-[var(--c8)]">Centralidad de Cercanía (Closeness)</h2>
+                            <p class="mb-4">Mide qué tan cerca (o lejos) está un nodo del resto; menor distancia total implica mayor centralidad.</p>
+                            <img src="https://raw.githubusercontent.com/RodrigoMolinaAvila/web_resources/main/webresources/closeness.svg" alt="Centralidad de Cercanía" class="w-3/4 h-auto mx-auto filter brightness-0 invert">
+                        </div>
+                    </div>
+                    
+                    <!-- Método B -->
+                    <div class="fade">
+                        <div class="bg-gradient-to-br from-[var(--c4)] to-[var(--c6)] p-6 rounded-2xl h-full">
+                            <h2 class="text-xl font-semibold mb-4 text-[var(--c8)]">Centralidad de Intermediación (Betwenness)</h2>
+                            <p class="mb-4">Proporción de caminos más cortos entre pares de nodos que atraviesan el nodo v; indica su rol de puente.</p>
+                            <img src="https://raw.githubusercontent.com/RodrigoMolinaAvila/web_resources/main/webresources/betwenness.svg" alt="Centralidad de Intermediación" class="w-3/4 h-auto mx-auto filter brightness-0 invert">
+                        </div>
+                    </div>
+                    
+                    <!-- Método C -->
+                    <div class="fade">
+                        <div class="bg-gradient-to-br from-[var(--c2)] to-[var(--c5)] p-6 rounded-2xl h-full">
+                            <h2 class="text-xl font-semibold mb-4 text-[var(--c8)]">Detección de Comunidades (Leiden)</h2>
+                            <p class="mb-4">Algoritmo de optimización que maximiza la modularidad para identificar comunidades en redes complejas.</p>
+                            <div class="mt-4 p-3 bg-blue-900 bg-opacity-30 rounded-lg border-l-4 border-blue-400">
+                                <p class="text-sm">Mejora sobre Louvain: garantiza comunidades bien conectadas y evita particiones desconectadas.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Método D -->
+                    <div class="fade">
+                        <div class="bg-gradient-to-br from-[var(--c3)] to-[var(--c7)] p-6 rounded-2xl h-full">
+                            <h2 class="text-xl font-semibold mb-4 text-[var(--c8)]">Similitud Topológica (Jaccard)</h2>
+                            <p class="mb-4">Cuantifica la similitud entre dos nodos comparando el solapamiento de sus vecinos.</p>
+                            <img src="https://raw.githubusercontent.com/RodrigoMolinaAvila/web_resources/main/webresources/similitud_jaccard.svg" alt="Similitud Jaccard" class="w-3/4 h-auto mx-auto filter brightness-0 invert">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 8: Resultados Esperados -->
+        <section class="slide" id="slide-7">
+            <div class="max-w-5xl mx-auto h-full flex flex-col justify-center">
+                <h1 class="text-4xl font-bold mb-8 text-[var(--c6)] fade">Resultados Esperados</h1>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <!-- Card 1: Grafo de Conocimiento -->
+                    <div class="fade">
+                        <div class="bg-gradient-to-br from-[var(--c1)] to-[var(--c3)] p-6 rounded-2xl h-full">
+                            <div class="flex items-center mb-4">
+                                <div class="w-10 h-10 rounded-full bg-[var(--c8)] flex items-center justify-center mr-3">
+                                    <i class="fas fa-project-diagram text-[var(--c1)]"></i>
+                                </div>
+                                <h2 class="text-xl font-semibold text-[var(--c8)]">Grafo de Conocimiento</h2>
+                            </div>
+                            <ul class="graph-bullets">
+                                <li>Representación de trayectorias académicas</li>
+                                <li>Identificación de patrones temáticos</li>
+                                <li>Análisis de movilidad institucional</li>
+                                <li>Vínculos sociodemográficos-resultados</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Card 2: Resultados Cuantitativos -->
+                    <div class="fade">
+                        <div class="bg-gradient-to-br from-[var(--c4)] to-[var(--c6)] p-6 rounded-2xl h-full">
+                            <div class="flex items-center mb-4">
+                                <div class="w-10 h-10 rounded-full bg-[var(--c8)] flex items-center justify-center mr-3">
+                                    <i class="fas fa-chart-bar text-[var(--c4)]"></i>
+                                </div>
+                                <h2 class="text-xl font-semibold text-[var(--c8)]">Resultados Cuantitativos</h2>
+                            </div>
+                            <ul class="graph-bullets">
+                                <li>Métricas estructurales del grafo</li>
+                                <li>Agrupamientos temáticos por género/clase</li>
+                                <li>Segmentos epistémicos diferenciados</li>
+                                <li>Desigualdades en redes de prestigio</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Card 3: Análisis Cualitativo -->
+                    <div class="fade">
+                        <div class="bg-gradient-to-br from-[var(--c2)] to-[var(--c5)] p-6 rounded-2xl h-full">
+                            <div class="flex items-center mb-4">
+                                <div class="w-10 h-10 rounded-full bg-[var(--c8)] flex items-center justify-center mr-3">
+                                    <i class="fas fa-search text-[var(--c2)]"></i>
+                                </div>
+                                <h2 class="text-xl font-semibold text-[var(--c8)]">Análisis Cualitativo</h2>
+                            </div>
+                            <ul class="graph-bullets">
+                                <li>Segmentación temática interseccional</li>
+                                <li>Configuración estructural de la producción</li>
+                                <li>Desigualdades en circulación del capital</li>
+                                <li>Modelo formal replicable</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Visualization -->
+                <div class="fade">
+                    <div class="bg-slate-800 bg-opacity-70 p-4 rounded-2xl w-3/4 mx-auto text-center">
+                        <h2 class="text-lg font-semibold mb-2 text-[var(--c5)]">Impacto Esperado</h2>
+                        <p class="mb-3">Esto permitirá fortalecer las capacidades explicativas del análisis de trayectorias académicas en Chile, mediante:</p>
+                        <ul class="graph-bullets mx-auto w-max">
+                            <li class="text-center">Modelo formal visualizable con grafos</li>
+                            <li class="text-center">Coherencia con recursos computacionales</li>
+                            <li class="text-center">Explotación del corpus consolidado de datos</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Slide 9: Exploratory Data Analysis (EDA) -->
+        <section class="slide" id="slide-8">
+            <div class="absolute inset-0" id="eda-graph"></div>
+            <div class="relative z-20 flex flex-col items-center justify-center h-full text-center">
+                <h1 class="text-4xl font-bold mb-12 text-[var(--c6)]">Exploratory Data Analysis (EDA)</h1>
+                
+                <a href="https://app.powerbi.com/groups/me/reports/ad2f4cdf-5794-4157-a3a8-40865111784e/8aebc1e58086be04602e?experience=power-bi" 
+                   target="_blank"
+                   class="relative z-30 bg-gradient-to-r from-[var(--c5)] to-[var(--c7)] text-white px-12 py-6 rounded-full font-bold text-xl flex items-center transition-all hover:scale-105 hover:shadow-lg hover:shadow-[var(--c5)]/30">
+                    <i class="fas fa-chart-line mr-3"></i> Ver Dashboard Power BI
+                    <div class="absolute -z-10 inset-0 rounded-full bg-white/10 blur-md animate-pulse"></div>
+                </a>
+            </div>
+        </section>
+        <!-- Slide 10: Bibliografía -->
+    <section class="slide" id="slide-9">
+    <div class="max-w-5xl mx-auto h-full flex flex-col justify-center">
+      <h1 class="text-4xl font-bold mb-8 text-[var(--c6)] text-center">Bibliografía</h1>
+      <div class="fade max-h-[90vh]">
+        <ul class="space-y-4 text-left text-xs leading-relaxed">
+                        <li class="flex">
+                            <span class="text-[var(--c5)] font-bold mr-2">[1]</span>
+                            <span class="text-xs">Acker, J. (1990). Hierarchies, jobs, bodies: A theory of gendered organizations. Gender & Society, 4(2), 139–158. https://doi.org/10.1177/089124390004002002</span>
+                        </li>
+                        <li class="flex">
+                            <span class="text-[var(--c5)] font-bold mr-2">[2]</span>
+                            <span class="text-xs">Bro, N., & Mendoza, M. (2021). Surname affinity in Santiago, Chile: A network-based approach that uncovers urban segregation. PLOS ONE, 16(1), e0244372. https://doi.org/10.1371/journal.pone.0244372</span>
+                        </li>
+                        <li class="flex">
+                            <span class="text-[var(--c5)] font-bold mr-2">[3]</span>
+                            <span class="text-xs">Canales, A. (2016). La reproducción de la élite en Chile: Educación y meritocracia. Ediciones Universidad Diego Portales.</span>
+                        </li>
+                        <li class="flex">
+                            <span class="text-[var(--c5)] font-bold mr-2">[4]</span>
+                            <span class="text-xs">Chiappa, R., & Pérez Mejías, P. (2019). Inequalities in higher education in Chile: Discourses, practices and policies. In A. Furlong, F. Kintrea & T. Biggart (Eds.), Higher education and social inequalities: University admissions, experiences and outcomes (pp. 225–245). Routledge.</span>
+                        </li>
+                        <li class="flex">
+                            <span class="text-[var(--c5)] font-bold mr-2">[5]</span>
+                            <span class="text-xs">Christensen, A. D., & Jensen, S. Q. (2012). Doing intersectional analysis: Methodological implications for qualitative research. NORA – Nordic Journal of Feminist and Gender Research, 20(2), 109–125. https://doi.org/10.1080/08038740.2012.673505</span>
+                        </li>
+                        <li class="flex">
+                            <span class="text-[var(--c5)] font-bold mr-2">[6]</span>
+                            <span class="text-xs">Collins, P. H. (2019). Intersectionality as critical social theory. Duke University Press.</span>
+                        </li>
+                        <li class="flex">
+                            <span class="text-[var(--c5)] font-bold mr-2">[7]</span>
+                            <span class="text-xs">Connell, R. (2007). Southern theory: The global dynamics of knowledge in social science. Polity Press.</span>
+                        </li>
+                        <li class="flex">
+                            <span class="text-[var(--c5)] font-bold mr-2">[8]</span>
+                            <span class="text-xs">Crenshaw, K. (1989). Demarginalizing the intersection of race and sex: A Black feminist critique of antidiscrimination doctrine, feminist theory and antiracist politics. University of Chicago Legal Forum, 1989(1), 139–167. https://chicagounbound.uchicago.edu/uclf/vol1989/iss1/8/</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="mt-12 fade text-center">
+                    <h2 class="text-2xl font-semibold mb-4 text-[var(--c5)]">Recursos Adicionales</h2>
+                    <div class="flex justify-center space-x-4">
+                        <a href="https://github.com/RodrigoMolinaAvila/Fondecyt-11241304" class="text-[var(--c6)] hover:text-[var(--c8)] transition"><i class="fab fa-github fa-2x"></i></a>
+                        <a href="#" class="text-[var(--c6)] hover:text-[var(--c8)] transition"><i class="fas fa-book fa-2x"></i></a>
+                        <a href="#" class="text-[var(--c6)] hover:text-[var(--c8)] transition"><i class="fas fa-database fa-2x"></i></a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+     <section class="slide" id="slide-10">
+    <div class="max-w-5xl mx-auto h-full flex flex-col justify-center">
+      <h1 class="text-4xl font-bold mb-8 text-[var(--c6)] text-center">Bibliografía</h1>
+      <div class="fade max-h-[90vh]">
+        <ul class="space-y-4 text-left text-xs leading-relaxed">
+                        <li class="flex">
+                            <span class="text-[var(--c5)] font-bold mr-2">[8]</span>
+                            <span class="text-xs">Crenshaw, K. (1989). Demarginalizing the intersection of race and sex: A Black feminist critique of antidiscrimination doctrine, feminist theory and antiracist politics. University of Chicago Legal Forum, 1989(1), 139–167. https://chicagounbound.uchicago.edu/uclf/vol1989/iss1/8/</span>
+                        </li>
+                        <li class="flex">
+                            <span class="text-[var(--c5)] font-bold mr-2">[9]</span>
+                            <span class="text-xs">Chen, P. P.-S. (1976). The entity-relationship model: Toward a unified view of data. ACM Transactions on Database Systems, 1(1), 9–36. https://doi.org/10.1145/320434.320440</span>
+                        </li>
+                        <li class="flex">
+                            <span class="text-[var(--c5)] font-bold mr-2">[10]</span>
+                            <span class="text-xs">Guzmán-Valenzuela, C., Ortega, L., Montero, M., & Pérez Mejías, P. (2022). Situated knowledge, cognitive injustice and epistemic resistance in Chilean higher education: Toward a decolonial science. Frontiers in Sociology, 7, 938407. https://doi.org/10.3389/fsoc.2022.938407</span>
+                        </li>
+                        <li class="flex">
+                            <span class="text-[var(--c5)] font-bold mr-2">[11]</span>
+                            <span class="text-xs">Hogan, A., Blomqvist, E., Cochez, M., d'Amato, C., de Melo, G., Gutiérrez, C., ... & Zimmermann, A. (2021). Knowledge graphs. ACM Computing Surveys, 54(4), 1–37. https://doi.org/10.1145/3447772</span>
+                        </li>
+                        <li class="flex">
+                            <span class="text-[var(--c5)] font-bold mr-2">[12]</span>
+                            <span class="text-xs">McCall, L. (2005). The complexity of intersectionality. Signs: Journal of Women in Culture and Society, 30(3), 1771–1800. https://doi.org/10.1086/426800</span>
+                        </li>
+                        <li class="flex">
+                            <span class="text-[var(--c5)] font-bold mr-2">[13]</span>
+                            <span class="text-xs">Rodríguez, J. M., & Archer, L. (2022). Posicionamientos sociales y trayectorias científicas en Chile: una mirada interseccional. Revista Latinoamericana de Ciencias Sociales, Niñez y Juventud, 20(1), 1–18. https://doi.org/10.11600/1692715x.2019200108</span>
+                        </li>
+                        <li class="flex">
+                            <span class="text-[var(--c5)] font-bold mr-2">[14]</span>
+                            <span class="text-xs">UNESCO. (n.d.). Cracking the code: Girls' and women's education in science, technology, engineering and mathematics (STEM). https://unesdoc.unesco.org/ark:/48223/pf0000253479</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="mt-12 fade text-center">
+                    <h2 class="text-2xl font-semibold mb-4 text-[var(--c5)]">Recursos Adicionales</h2>
+                    <div class="flex justify-center space-x-4">
+                        <a href="https://github.com/RodrigoMolinaAvila/Fondecyt-11241304" class="text-[var(--c6)] hover:text-[var(--c8)] transition"><i class="fab fa-github fa-2x"></i></a>
+                        <a href="#" class="text-[var(--c6)] hover:text-[var(--c8)] transition"><i class="fas fa-book fa-2x"></i></a>
+                        <a href="#" class="text-[var(--c6)] hover:text-[var(--c8)] transition"><i class="fas fa-database fa-2x"></i></a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+        <!-- Slide 9: Agradecimientos -->
+        <section class="slide" id="slide-11">
+            <div class="absolute inset-0" id="final-graph"></div>
+            <div class="relative z-20 flex flex-col items-center justify-center h-full text-center">
+                <h1 class="text-4xl font-bold mb-8 text-[var(--c6)] fade">Agradecimientos</h1>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 fade bg-slate-900 bg-opacity-70 p-8 rounded-2xl">
+                    <div>
+                        <h2 class="text-xl font-semibold mb-4 text-[var(--c5)]">Instituciones</h2>
+                        <ul class="graph-bullets">
+                            <li>Universidad de Chile</li>
+                            <li>Iniciativa de Datos e Inteligencia Artificial (IDIA)</li>
+                            <li>Magíster en Data Science (MDS)</li>
+                            <li>FONDECYT Proyecto #11241304</li>
+                        </ul>
+                    </div>
+                    <div class="w-full">
+                        <h2 class="text-xl font-semibold mb-4 text-[var(--c5)]">Maestros</h2>
+                        <div class="flex flex-wrap gap-2 justify-center">
+                            <span class="text-sm whitespace-nowrap">Felipe Tobar</span>
+                            <span class="text-sm whitespace-nowrap">Camilo Carvajal</span>
+                            <span class="text-sm whitespace-nowrap">Constanza Contreras</span>
+                            <span class="text-sm whitespace-nowrap">Martín Sepúlveda</span>
+                            <span class="text-sm whitespace-nowrap">Felipe Vildoso</span>
+                            <span class="text-sm whitespace-nowrap">Héctor Alvarez</span>
+                            <span class="text-sm whitespace-nowrap">Melanie Peña</span>
+                            <span class="text-sm whitespace-nowrap">Michelle Avendaño</span>
+                            <span class="text-sm whitespace-nowrap">Felipe Bravo</span>
+                            <span class="text-sm whitespace-nowrap">Lucas Carrasco</span>
+                            <span class="text-sm whitespace-nowrap">Daniel Schwartz</span>
+                            <span class="text-sm whitespace-nowrap">Antonia Aceituno</span>
+                            <span class="text-sm whitespace-nowrap">Valentina Rojas</span>
+                            <span class="text-sm whitespace-nowrap">Sebastián Tinoco</span>
+                            <span class="text-sm whitespace-nowrap">Eduardo Moya</span>
+                            <span class="text-sm whitespace-nowrap">Francisco Förster</span>
+                            <span class="text-sm whitespace-nowrap">Rodolfo Nuñez</span>
+                            <span class="text-sm whitespace-nowrap">Catherine Benavides</span>
+                            <span class="text-sm whitespace-nowrap">Sebastián Ferrada</span>
+                            <span class="text-sm whitespace-nowrap">Hugo Mora</span>
+                            <span class="text-sm whitespace-nowrap">Jorge Ortiz</span>
+                            <span class="text-sm whitespace-nowrap">Roxana Chiappa</span>
+                            <span class="text-sm whitespace-nowrap">Marcos González Hernando</span>
+                        </div>
+                        <h2 class="text-xl font-semibold mt-6 mb-4 text-[var(--c5)]">Amigos</h2>
+                        <div class="flex gap-4 justify-center">
+                            <span class="text-sm whitespace-nowrap">PV</span>
+                            <span class="text-sm whitespace-nowrap">NC</span>
+                            <span class="text-sm whitespace-nowrap">CB</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-12 fade bg-slate-900 bg-opacity-70 p-6 rounded-2xl text-center">
+                    <p class="text-xl italic">"También a la familia, por cada persona que se ha cruzado en mi camino para sumar y aportar experiencia/energía/escucha, y por los que no están."</p>
+                </div>
+                <div class="flex flex-wrap justify-center items-center w-full mt-8 fade gap-8">
+                    <div class="flex justify-center">
+                        <img src="https://idia.uchile.cl/wp-content/uploads/2025/04/Logo-IDIA-_Blanco_Horizontal-1.png" alt="IDIA" class="h-20">
+                    </div>
+                    <div class="flex justify-center">
+                        <img src="https://ingenieria.uchile.cl/.resources/portal-ingenieria/images/logo-fcfm.svg" alt="Universidad de Chile" class="h-16">
+                    </div>
+                    <div class="flex justify-center">
+                        <img src="https://mds.uchile.cl/wp-content/uploads/2020/04/logo_mds_web_w_01.svg" alt="MDS" class="h-16">
+                    </div>
+                    <div class="flex justify-center">
+                        <img src="https://raw.githubusercontent.com/RodrigoMolinaAvila/web_resources/refs/heads/main/webresources/fond.svg" alt="Logo adicional" class="h-20">
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+
+    
+    <!-- Navigation and counter -->
+    <div class="fixed bottom-8 right-8 flex items-center space-x-4 z-50">
+        <!-- Navigation buttons -->
+        <div class="nav-btn" id="prev-btn">
+            <i class="fas fa-arrow-left"></i>
+        </div>
+        <div class="nav-btn" id="next-btn">
+            <i class="fas fa-arrow-right"></i>
+        </div>
+        
+        <!-- Slide counter -->
+        <div id="slide-counter" class="bg-slate-800 bg-opacity-50 px-4 py-2 rounded-full text-sm">
+            Slide <span id="current-slide">1</span> de <span id="total-slides">11</span>
+        </div>
+    </div>
+    
+    <!-- Tooltip -->
+    <div id="tooltip" class="tooltip"></div>
+    
+    <script>
+        // Slide management
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        let currentSlide = 0;
+        
+        document.getElementById('total-slides').textContent = totalSlides;
+        
+        function showSlide(index) {
+            // Hide all slides
+            slides.forEach(slide => slide.classList.remove('active'));
+            
+            // Show selected slide
+            slides[index].classList.add('active');
+            
+            // Update counter
+            document.getElementById('current-slide').textContent = index + 1;
+            currentSlide = index;
+            
+            // Apply fade animations
+            applyFade();
+            
+            // Initialize visualizations if needed
+            initVisualizations(index);
+            
+            // Initialize resources graph if needed
+            if (index === 2 && !initializedVisualizations.resources) {
+                initResourcesGraph();
+                initializedVisualizations.resources = true;
+            }
+
+            // Initialize paragraph highlighting for this slide
+            resetParagraphHighlighting();
+        }
+        
+        function applyFade() {
+            const fadeElements = document.querySelectorAll('.slide.active .fade');
+            fadeElements.forEach((el, i) => {
+                el.style.transitionDelay = `${i * 0.1}s`;
+            });
+        }
+        
+        // Navigation state
+        let currentHighlightIndex = 0;
+        let allHighlighted = false;
+
+        // Navigation handlers
+        document.getElementById('prev-btn').addEventListener('click', handlePrevClick);
+        document.getElementById('next-btn').addEventListener('click', handleNextClick);
+
+        function handlePrevClick() {
+             const paragraphs = slides[currentSlide].querySelectorAll('p, li');
+            
+            if (allHighlighted) {
+                // If all were highlighted, go back to last paragraph highlight
+                allHighlighted = false;
+                currentHighlightIndex = paragraphs.length - 1;
+                updateParagraphHighlighting();
+            } else if (paragraphs.length === 0 || currentHighlightIndex === 0)
+            {
+                // Go to previous slide if objectives slide, no paragraphs or at first highlight
+                if (currentSlide > 0) {
+                    showSlide(currentSlide - 1);
+                }
+            } else {
+                // Move to previous paragraph
+                currentHighlightIndex--;
+                updateParagraphHighlighting();
+            }
+        }
+
+        function handleNextClick() {
+             const paragraphs = slides[currentSlide].querySelectorAll('p, li');
+            
+            if (paragraphs.length === 0) {
+                // Go to next slide if no paragraphs
+                if (currentSlide < totalSlides - 1) {
+                    showSlide(currentSlide + 1);
+                }
+            } else if (allHighlighted) {
+                // All already highlighted - go to next slide
+                if (currentSlide < totalSlides - 1) {
+                    showSlide(currentSlide + 1);
+                }
+            } else if (currentHighlightIndex < paragraphs.length - 1) {
+                // Move to next paragraph
+                currentHighlightIndex++;
+                updateParagraphHighlighting();
+            } else if (currentHighlightIndex < paragraphs.length - 1) {
+                // Move to next paragraph
+                currentHighlightIndex++;
+                updateParagraphHighlighting();
+            } else {
+                // Reached last paragraph - highlight all
+                highlightAllParagraphs();
+                allHighlighted = true;
+            }
+        }
+
+        function updateParagraphHighlighting() {
+             const paragraphs = slides[currentSlide].querySelectorAll('p, li');
+            
+            paragraphs.forEach((el, i) => {
+                if (i === currentHighlightIndex) {
+                    el.classList.remove('paragraph-lowlight');
+                    el.classList.add('paragraph-highlight');
+                } else {
+                    el.classList.remove('paragraph-highlight');
+                    el.classList.add('paragraph-lowlight');
+                }
+            });
+        }
+
+        function highlightAllParagraphs() {
+             const paragraphs = slides[currentSlide].querySelectorAll('p, li');
+            paragraphs.forEach(p => {
+                p.classList.remove('paragraph-lowlight');
+                p.classList.add('paragraph-highlight');
+            });
+        }
+
+        function resetParagraphHighlighting() {
+             const paragraphs = slides[currentSlide].querySelectorAll('p, li');
+            
+            paragraphs.forEach(p => {
+                p.classList.remove('paragraph-lowlight', 'paragraph-highlight');
+            });
+            
+            currentHighlightIndex = 0;
+            allHighlighted = false;
+            
+            // Highlight first element if exists
+            if (paragraphs.length > 0) {
+                paragraphs[0].classList.add('paragraph-highlight');
+                for (let i = 1; i < paragraphs.length; i++) {
+                    paragraphs[i].classList.add('paragraph-lowlight');
+                }
+            }
+        }
+        
+        document.getElementById('start-btn').addEventListener('click', () => {
+            showSlide(1);
+        });
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') {
+                handlePrevClick();
+            } else if (e.key === 'ArrowRight' || e.key === ' ') {
+                handleNextClick();
+            }
+        });
+        
+        // Touch swipe
+        let touchStartX = 0;
+        let touchEndX = 0;
+        
+        document.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        });
+        
+        document.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        });
+        
+        function handleSwipe() {
+            const swipeThreshold = 50;
+            
+            if (touchStartX - touchEndX > swipeThreshold) {
+                // Swipe left
+                if (currentSlide < totalSlides - 1) {
+                    showSlide(currentSlide + 1);
+                }
+            } else if (touchEndX - touchStartX > swipeThreshold) {
+                // Swipe right
+                if (currentSlide > 0) {
+                    showSlide(currentSlide - 1);
+                }
+            }
+        }
+        
+        // Visualization initialization flags
+        const initializedVisualizations = {
+            cover: false,
+            stemVsSocial: false,
+            radial: false,
+            er: false,
+            resources: false
+        };
+        
+        function initVisualizations(slideIndex) {
+            // Initialize cover graphs
+            if ((slideIndex === 0 || slideIndex === 9) && !initializedVisualizations.cover) {
+                if (slideIndex === 0) {
+                    initCoverGraph('cover-graph');
+                } else {
+                    initCoverGraph('eda-graph', true);
+                }
+                initializedVisualizations.cover = true;
+            }
+            
+            // Initialize STEM vs Social Sciences comparison
+            if (slideIndex === 2 && !initializedVisualizations.stemVsSocial) {
+                initStemVsSocial();
+                initializedVisualizations.stemVsSocial = true;
+            }
+            
+            // Initialize radial graph
+            if (slideIndex === 4 && !initializedVisualizations.radial) {
+                initRadialGraph();
+                initializedVisualizations.radial = true;
+            }
+            
+            // Initialize ER graph
+            if (slideIndex === 6 && !initializedVisualizations.er) {
+                initERGraph();
+                initializedVisualizations.er = true;
+            }
+        }
+        
+        // STEM vs Social Sciences comparison
+        function initStemVsSocial() {
+            const container = d3.select('#stem-vs-social-sciences');
+            const width = container.node().getBoundingClientRect().width;
+            const height = 0;
+            
+            const svg = container.append('svg')
+                .attr('width', width)
+                .attr('height', height);
+            
+            const data = [
+                {category: 'STEM', inequality: 72, visibility: 45},
+                {category: 'C. Sociales', inequality: 58, visibility: 28}
+            ];
+            
+            const x = d3.scaleBand()
+                .domain(data.map(d => d.category))
+                .range([0, width])
+                .padding(0.4);
+            
+            const y = d3.scaleLinear()
+                .domain([0, 100])
+                .range([height, 0]);
+            
+            // Inequality bars
+            svg.selectAll('.inequality')
+                .data(data)
+                .enter().append('rect')
+                .attr('class', 'inequality')
+                .attr('x', d => x(d.category))
+                .attr('y', d => y(d.inequality))
+                .attr('width', x.bandwidth() / 2)
+                .attr('height', d => height - y(d.inequality))
+                .attr('fill', 'var(--c5)')
+                .attr('rx', 4);
+            
+            // Visibility bars
+            svg.selectAll('.visibility')
+                .data(data)
+                .enter().append('rect')
+                .attr('class', 'visibility')
+                .attr('x', d => x(d.category) + x.bandwidth() / 2)
+                .attr('y', d => y(d.visibility))
+                .attr('width', x.bandwidth() / 2)
+                .attr('height', d => height - y(d.visibility))
+                .attr('fill', 'var(--c3)')
+                .attr('rx', 4);
+            
+            // Labels
+            svg.append('text')
+                .attr('x', 10)
+                .attr('y', 15)
+                .attr('fill', 'var(--c5)')
+                .text('Desigualdad (%)');
+            
+            svg.append('text')
+                .attr('x', width - 10)
+                .attr('y', 15)
+                .attr('text-anchor', 'end')
+                .attr('fill', 'var(--c3)')
+                .text('Visibilidad (%)');
+        }
+
+        // Cover graph with force simulation
+        function initCoverGraph(containerId, isEDA = false) {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            const container = d3.select(`#${containerId}`);
+            
+            // Adjust opacity for EDA version
+            const opacity = isEDA ? 0.15 : 1;
+            
+            // Create SVG
+            const svg = container.append('svg')
+                .attr('width', width)
+                .attr('height', height);
+            
+            // Generate nodes
+            const numNodes = 80;
+            const nodes = d3.range(numNodes).map(i => ({
+                id: i,
+                radius: Math.random() * 8 + 4,
+                level: Math.floor(Math.random() * 5)
+            }));
+            
+            // Generate links
+            const links = [];
+            for (let i = 0; i < numNodes * 1.5; i++) {
+                const source = Math.floor(Math.random() * numNodes);
+                let target = Math.floor(Math.random() * numNodes);
+                while (target === source) {
+                    target = Math.floor(Math.random() * numNodes);
+                }
+                links.push({ source, target });
+            }
+            
+            // Color scale
+            const colorScale = d3.scaleSequential()
+                .interpolator(d3.interpolateViridis)
+                .domain([0, 4]);
+            
+            // Simulation
+            const simulation = d3.forceSimulation(nodes)
+                .force('charge', d3.forceManyBody().strength(-20))
+                .force('link', d3.forceLink(links).id(d => d.id).distance(100))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collision', d3.forceCollide().radius(d => d.radius + 2))
+                .alphaDecay(0) // Run forever
+                .alpha(0.3)
+                .restart();
+            
+            // Draw links
+            const link = svg.append('g')
+                .attr('stroke', isEDA ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.1)')
+                .attr('stroke-width', 1)
+                .selectAll('line')
+                .data(links)
+                .join('line');
+            
+            // Draw nodes
+            const node = svg.append('g')
+                .selectAll('circle')
+                .data(nodes)
+                .join('circle')
+                .attr('r', d => d.radius)
+                .attr('fill', d => isEDA ? `rgba(68, 1, 84, ${0.3 + d.level * 0.15})` : colorScale(d.level))
+                .attr('stroke', 'white')
+                .attr('stroke-width', 0)
+                .classed('node', true)
+                .call(drag(simulation));
+            
+            // Tooltip
+            const tooltip = d3.select('#tooltip');
+            
+            node.on('mouseover', function(event, d) {
+                d3.select(this)
+                    .transition()
+                    .duration(300)
+                    .attr('stroke-width', 2)
+                    .attr('r', d.radius * 1.5);
+                
+                tooltip
+                    .style('left', (event.pageX + 10) + 'px')
+                    .style('top', (event.pageY - 20) + 'px')
+                    .html(`Nodo ${d.id}<br>Nivel: ${d.level}`)
+                    .style('opacity', 0.9);
+            });
+            
+            node.on('mouseout', function(d) {
+                d3.select(this)
+                    .transition()
+                    .duration(300)
+                    .attr('stroke-width', 0)
+                    .attr('r', d.radius);
+                
+                tooltip.style('opacity', 0);
+            });
+            
+            node.on('click', function(event, d) {
+                d3.select(this)
+                    .transition()
+                    .duration(300)
+                    .attr('fill', d3.schemeSet3[Math.floor(Math.random() * 12)]);
+            });
+            
+            // Mouse interaction
+            svg.on('mousemove', function(event) {
+                const [x, y] = d3.pointer(event);
+                simulation.force('mouse', d3.forceManyBody()
+                    .strength(-100)
+                    .x(x)
+                    .y(y));
+                simulation.alpha(0.3).restart();
+            });
+            
+            // Update positions
+            simulation.on('tick', () => {
+                link
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+                
+                node
+                    .attr('cx', d => d.x)
+                    .attr('cy', d => d.y);
+            });
+            
+            // Drag function
+            function drag(simulation) {
+                function dragstarted(event, d) {
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    d.fx = d.x;
+                    d.fy = d.y;
+                }
+                
+                function dragged(event, d) {
+                    d.fx = event.x;
+                    d.fy = event.y;
+                }
+                
+                function dragended(event, d) {
+                    if (!event.active) simulation.alphaTarget(0);
+                    d.fx = null;
+                    d.fy = null;
+                }
+                
+                return d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended);
+            }
+        }
+        
+        // Radial graph for objectives
+        function initRadialGraph() {
+            const container = d3.select('#radial-graph');
+            const width = container.node().getBoundingClientRect().width;
+            const height = container.node().getBoundingClientRect().height;
+            const radius = Math.min(width, height) * 0.4;
+            
+            // Clear previous content
+            container.html('');
+            
+            // Create SVG
+            const svg = container.append('svg')
+                .attr('width', width)
+                .attr('height', height)
+                .append('g')
+                .attr('transform', `translate(${width/2},${height/2})`);
+            
+            // Objectives data
+            const objectives = [
+                {id: 0, name: "General", level: 0},
+                {id: 1, name: "Modelado", level: 1},
+                {id: 2, name: "Integración", level: 1},
+                {id: 3, name: "Evaluación", level: 1},
+                {id: 4, name: "Ontologías", level: 2},
+                {id: 5, name: "Patrones", level: 2},
+                {id: 6, name: "APIs", level: 2},
+                {id: 7, name: "Transformación", level: 2},
+                {id: 8, name: "Métricas", level: 2},
+                {id: 9, name: "Casos de uso", level: 2}
+            ];
+            
+            // Links
+            const links = [
+                {source: 0, target: 1}, {source: 0, target: 2}, {source: 0, target: 3},
+                {source: 1, target: 4}, {source: 1, target: 5},
+                {source: 2, target: 6}, {source: 2, target: 7},
+                {source: 3, target: 8}, {source: 3, target: 9}
+            ];
+            
+            // Color scale
+            const colorScale = d3.scaleSequential()
+                .interpolator(d3.interpolateViridis)
+                .domain([0, 2]);
+            
+            // Radial layout
+            const angleScale = d3.scaleLinear()
+                .domain([0, objectives.length])
+                .range([0, 2 * Math.PI]);
+            
+            const radialScale = d3.scaleLinear()
+                .domain([0, 2])
+                .range([0, radius]);
+            
+            // Position nodes
+            objectives.forEach((d, i) => {
+                const angle = angleScale(i);
+                const r = radialScale(d.level);
+                d.x = r * Math.cos(angle - Math.PI/2);
+                d.y = r * Math.sin(angle - Math.PI/2);
+            });
+            
+            // Draw links
+            svg.selectAll('.link')
+                .data(links)
+                .enter().append('line')
+                .attr('class', 'link')
+                .attr('x1', d => objectives[d.source].x)
+                .attr('y1', d => objectives[d.source].y)
+                .attr('x2', d => objectives[d.target].x)
+                .attr('y2', d => objectives[d.target].y)
+                .attr('stroke', 'rgba(255, 255, 255, 0.3)')
+                .attr('stroke-width', 1);
+            
+            // Draw nodes
+            const node = svg.selectAll('.node')
+                .data(objectives)
+                .enter().append('g')
+                .attr('class', 'node')
+                .attr('transform', d => `translate(${d.x},${d.y})`);
+            
+            node.append('circle')
+                .attr('r', d => d.level === 0 ? 20 : d.level === 1 ? 15 : 10)
+                .attr('fill', d => colorScale(d.level))
+                .attr('stroke', 'white')
+                .attr('stroke-width', 0)
+                .on('mouseover', function(event, d) {
+                    d3.select(this)
+                        .transition()
+                        .duration(200)
+                        .attr('stroke-width', 2);
+                    
+                    d3.select('#tooltip')
+                        .style('left', (event.pageX + 10) + 'px')
+                        .style('top', (event.pageY - 20) + 'px')
+                        .html(d.name)
+                        .style('opacity', 0.9);
+                })
+                .on('mouseout', function() {
+                    d3.select(this)
+                        .transition()
+                        .duration(200)
+                        .attr('stroke-width', 0);
+                    
+                    d3.select('#tooltip').style('opacity', 0);
+                });
+            
+            // Add labels
+            node.append('text')
+                .attr('text-anchor', 'middle')
+                .attr('dy', d => d.level === 0 ? 5 : d.level === 1 ? 4 : 3)
+                .attr('fill', 'white')
+                .attr('font-size', d => d.level === 0 ? '14px' : d.level === 1 ? '12px' : '10px')
+                .text(d => d.name);
+            
+            // Add title
+            svg.append('text')
+                .attr('text-anchor', 'middle')
+                .attr('dy', -radius - 20)
+                .attr('fill', colorScale(0))
+                .attr('font-size', '18px')
+                .attr('font-weight', 'bold')
+                .text('Objetivos de Investigación');
+        }
+        
+        // ER Graph for methodology
+        function initERGraph() {
+            const container = d3.select('#er-graph');
+            const width = container.node().getBoundingClientRect().width;
+            const height = container.node().getBoundingClientRect().height;
+            
+            // Clear previous content
+            container.html('');
+            
+            // Create SVG
+            const svg = container.append('svg')
+                .attr('width', width)
+                .attr('height', height)
+                .append('g')
+                .attr('transform', `translate(${width/2},${height/2})`);
+            
+            // Define entities
+            const entities = [
+                {id: 'user', name: 'Usuario', x: -200, y: -100, properties: ['id', 'nombre', 'rol']},
+                {id: 'query', name: 'Consulta', x: 0, y: -100, properties: ['id', 'texto', 'fecha']},
+                {id: 'result', name: 'Resultado', x: 200, y: -100, properties: ['id', 'relevancia', 'fuente']},
+                {id: 'entity', name: 'Entidad', x: -200, y: 100, properties: ['id', 'tipo', 'nombre']},
+                {id: 'relation', name: 'Relación', x: 0, y: 100, properties: ['id', 'tipo', 'peso']},
+                {id: 'source', name: 'Fuente', x: 200, y: 100, properties: ['id', 'tipo', 'confiabilidad']}
+            ];
+            
+            // Define relationships
+            const relationships = [
+                {source: 'user', target: 'query', label: 'realiza'},
+                {source: 'query', target: 'result', label: 'genera'},
+                {source: 'result', target: 'entity', label: 'contiene'},
+                {source: 'entity', target: 'relation', label: 'tiene'},
+                {source: 'relation', target: 'entity', label: 'conecta'},
+                {source: 'entity', target: 'source', label: 'proviene_de'},
+                {source: 'source', target: 'result', label: 'provee'}
+            ];
+            
+            // Color scale
+            const colorScale = d3.scaleOrdinal()
+                .domain(['user', 'query', 'result', 'entity', 'relation', 'source'])
+                .range([...d3.schemeViridis[6]]);
+            
+            // Draw relationships
+            relationships.forEach(rel => {
+                const source = entities.find(e => e.id === rel.source);
+                const target = entities.find(e => e.id === rel.target);
+                
+                // Draw line
+                svg.append('line')
+                    .attr('x1', source.x)
+                    .attr('y1', source.y)
+                    .attr('x2', target.x)
+                    .attr('y2', target.y)
+                    .attr('stroke', 'rgba(255, 255, 255, 0.4)')
+                    .attr('stroke-width', 1);
+                
+                // Draw label
+                svg.append('text')
+                    .attr('x', (source.x + target.x) / 2)
+                    .attr('y', (source.y + target.y) / 2 - 10)
+                    .attr('text-anchor', 'middle')
+                    .attr('fill', 'white')
+                    .attr('font-size', '12px')
+                    .text(rel.label);
+            });
+            
+            // Draw entities
+            entities.forEach(entity => {
+                const group = svg.append('g')
+                    .attr('transform', `translate(${entity.x}, ${entity.y})`);
+                
+                // Draw rectangle
+                group.append('rect')
+                    .attr('width', 120)
+                    .attr('height', 100)
+                    .attr('rx', 8)
+                    .attr('fill', colorScale(entity.id))
+                    .attr('stroke', 'white')
+                    .attr('stroke-width', 0);
+                
+                // Draw entity name
+                group.append('text')
+                    .attr('x', 60)
+                    .attr('y', 25)
+                    .attr('text-anchor', 'middle')
+                    .attr('fill', 'white')
+                    .attr('font-weight', 'bold')
+                    .text(entity.name);
+                
+                // Draw properties
+                entity.properties.forEach((prop, i) => {
+                    group.append('text')
+                        .attr('x', 60)
+                        .attr('y', 45 + i * 15)
+                        .attr('text-anchor', 'middle')
+                        .attr('fill', 'white')
+                        .attr('font-size', '12px')
+                        .text(prop);
+                });
+                
+                // Add interactivity
+                group.on('mouseover', function() {
+                    d3.select(this).select('rect')
+                        .transition()
+                        .duration(200)
+                        .attr('stroke-width', 2);
+                });
+                
+                group.on('mouseout', function() {
+                    d3.select(this).select('rect')
+                        .transition()
+                        .duration(200)
+                        .attr('stroke-width', 0);
+                });
+            });
+            
+            // Add title
+            svg.append('text')
+                .attr('x', 0)
+                .attr('y', -height/2 + 30)
+                .attr('text-anchor', 'middle')
+                .attr('fill', colorScale('entity'))
+                .attr('font-size', '20px')
+                .attr('font-weight', 'bold')
+                .text('Modelo Entidad-Relación del Sistema');
+        }
+        
+        // Resources graph visualization
+        function initResourcesGraph() {
+            const container = d3.select('#resources-graph');
+            const width = container.node().getBoundingClientRect().width;
+            const height = container.node().getBoundingClientRect().height;
+            
+            // Clear previous content
+            container.html('');
+            
+            // Create SVG
+            const svg = container.append('svg')
+                .attr('width', width)
+                .attr('height', height);
+            
+            // Define nodes data - main horizontal nodes
+            const mainNodes = [
+                {id: 'becarios', name: 'Becarios', category: 'Becarios'},
+                {id: 'secundaria', name: 'Secundaria', category: 'Secundaria'},
+                {id: 'pregrado', name: 'Pregrado', category: 'Pregrado'},
+                {id: 'calidad_posgrado', name: 'Calidad Posgrado', category: 'Calidad Posgrado'},
+                {id: 'scopus', name: 'Scopus', category: 'Scopus'},
+                {id: 'fondecyt', name: 'Fondecyt', category: 'Fondecyt'}
+            ];
+            
+            // Define source nodes (vertical connections)
+            const sourceNodes = [
+                {id: 'portal_transparencia', name: 'Portal de Transparencia', parent: 'becarios', yOffset: -50},
+                {id: 'mineduc', name: 'Mineduc', parent: 'secundaria', yOffset: -50},
+                {id: 'cna', name: 'CNA', parent: 'pregrado', yOffset: -50},
+                {id: 'shanghai', name: 'Ranking Shanghái', parent: 'calidad_posgrado', yOffset: -50},
+                {id: 'qs', name: 'Ranking QS', parent: 'calidad_posgrado', yOffset: 50},
+                {id: 'author_api', name: 'Author API', parent: 'scopus', yOffset: -50},
+                {id: 'abstract_api', name: 'Abstract API', parent: 'scopus', yOffset: 50},
+                {id: 'anid', name: 'ANID', parent: 'fondecyt', yOffset: -50}
+            ];
+            
+            // Define links between main nodes (horizontal)
+            const horizontalLinks = [
+                {source: 'becarios', target: 'secundaria'},
+                {source: 'secundaria', target: 'pregrado'},
+                {source: 'pregrado', target: 'calidad_posgrado'},
+                {source: 'calidad_posgrado', target: 'scopus'},
+                {source: 'scopus', target: 'fondecyt'}
+            ];
+            
+            // Define links to source nodes (vertical)
+            const verticalLinks = sourceNodes.map(node => ({
+                source: node.parent,
+                target: node.id
+            }));
+            
+            // Color scale by category
+            const colorScale = d3.scaleOrdinal()
+                .domain(['Becarios', 'Secundaria', 'Pregrado', 'Calidad Posgrado', 'Scopus', 'Fondecyt'])
+                .range(['#440154', '#414487', '#2a788e', '#22a884', '#7ad151', '#fde725']);
+            
+            // Position main nodes horizontally
+            const x = d3.scalePoint()
+                .domain(mainNodes.map(d => d.id))
+                .range([50, width - 50])
+                .padding(0.5);
+            
+            // Draw horizontal links first
+            svg.selectAll('.horizontal-link')
+                .data(horizontalLinks)
+                .enter().append('line')
+                .attr('class', 'link')
+                .attr('x1', d => x(d.source))
+                .attr('y1', height/2)
+                .attr('x2', d => x(d.target))
+                .attr('y2', height/2)
+                .attr('stroke', 'rgba(255,255,255,0.3)')
+                .attr('stroke-width', 2);
+            
+            // Draw vertical links
+            svg.selectAll('.vertical-link')
+                .data(verticalLinks)
+                .enter().append('line')
+                .attr('class', 'link')
+                .attr('x1', d => x(d.source))
+                .attr('y1', height/2)
+                .attr('x2', d => x(d.source))
+                .attr('y2', d => {
+                    const node = sourceNodes.find(n => n.id === d.target);
+                    return height/2 + node.yOffset;
+                })
+                .attr('stroke', 'rgba(255,255,255,0.3)')
+                .attr('stroke-width', 1)
+                .attr('stroke-dasharray', '3,3');
+            
+            // Draw main nodes
+            const mainNode = svg.selectAll('.main-node')
+                .data(mainNodes)
+                .enter().append('g')
+                .attr('class', 'node')
+                .attr('transform', d => `translate(${x(d.id)},${height/2})`);
+            
+            mainNode.append('circle')
+                .attr('r', 15)
+                .attr('fill', d => colorScale(d.category))
+                .attr('stroke', 'white')
+                .attr('stroke-width', 0)
+                .on('mouseover', function() {
+                    d3.select(this)
+                        .transition()
+                        .duration(200)
+                        .attr('stroke-width', 2)
+                        .attr('r', 18);
+                })
+                .on('mouseout', function() {
+                    d3.select(this)
+                        .transition()
+                        .duration(200)
+                        .attr('stroke-width', 0)
+                        .attr('r', 15);
+                });
+            
+            // Draw source nodes
+            const sourceNode = svg.selectAll('.source-node')
+                .data(sourceNodes)
+                .enter().append('g')
+                .attr('class', 'node')
+                .attr('transform', d => `translate(${x(d.parent)},${height/2 + d.yOffset})`);
+            
+            sourceNode.append('circle')
+                .attr('r', 10)
+                .attr('fill', d => colorScale(mainNodes.find(n => n.id === d.parent).category))
+                .attr('stroke', 'white')
+                .attr('stroke-width', 0)
+                .on('mouseover', function() {
+                    d3.select(this)
+                        .transition()
+                        .duration(200)
+                        .attr('stroke-width', 2)
+                        .attr('r', 13);
+                })
+                .on('mouseout', function() {
+                    d3.select(this)
+                        .transition()
+                        .duration(200)
+                        .attr('stroke-width', 0)
+                        .attr('r', 10);
+                });
+            
+            // Add labels for main nodes
+            mainNode.append('text')
+                .attr('y', 30)
+                .attr('text-anchor', 'middle')
+                .attr('fill', 'white')
+                .attr('font-size', '12px')
+                .text(d => d.name);
+            
+            // Add labels for source nodes
+            sourceNode.append('text')
+                .attr('y', d => d.yOffset > 0 ? 25 : -15)
+                .attr('text-anchor', 'middle')
+                .attr('fill', 'white')
+                .attr('font-size', '10px')
+                .text(d => d.name);
+        }
+        
+        
+        // Initialize first slide
+        showSlide(0);
+        
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            // Re-initialize visualizations if they were already initialized
+            if (initializedVisualizations.cover) {
+                d3.select('#cover-graph').selectAll('*').remove();
+                initCoverGraph();
+            }
+            
+            if (initializedVisualizations.radial && currentSlide === 4) {
+                d3.select('#radial-graph').selectAll('*').remove();
+                initRadialGraph();
+            }
+            
+            if (initializedVisualizations.er && currentSlide === 6) {
+                d3.select('#er-graph').selectAll('*').remove();
+                initERGraph();
+            }
+        });
+    </script>
+
+    <script>
+        // Horizontal magma color animation for title
+        document.addEventListener('DOMContentLoaded', function() {
+            const title = document.getElementById('animated-title');
+            
+            // Create magma color scale
+            const colorScale = d3.scaleSequential()
+                .interpolator(d3.interpolateViridis)
+                .domain([0, 1]);
+            
+            // Apply gradient animation
+            let t = 1;
+            function animate() {
+                // Calculate gradient stops
+                const stops = [
+                    { offset: '0%', color: colorScale(t % 1) },
+                    { offset: '50%', color: colorScale((t + 0.5) % 1) },
+                    { offset: '100%', color: colorScale(t % 1) }
+                ];
+                
+                // Create gradient string
+                const gradient = stops.map(stop => 
+                    `${stop.color} ${stop.offset}`
+                ).join(', ');
+                
+                // Apply gradient
+                title.style.backgroundImage = `linear-gradient(90deg, ${gradient})`;
+                title.style.backgroundClip = 'text';
+                title.style.webkitBackgroundClip = 'text';
+                title.style.color = 'transparent';
+                
+                t += 0.0015; // Animation speed
+                requestAnimationFrame(animate);
+            }
+            
+            // Start animation
+            animate();
+        });
+    </script>
+</body>
+</html>
