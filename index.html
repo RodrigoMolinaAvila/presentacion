@@ -1045,10 +1045,34 @@
         });
         
         // Keyboard navigation
+        // Unified keyboard and remote control handling
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft') {
+            switch(e.key) {
+                case 'ArrowLeft':
+                case 'ArrowUp':
+                case 'PageUp':
+                    handlePrevClick();
+                    break;
+                case 'ArrowRight':
+                case 'ArrowDown': 
+                case 'PageDown':
+                case ' ':
+                    handleNextClick();
+                    break;
+                case 'Home':
+                    showSlide(0);
+                    break;
+                case 'End':
+                    showSlide(totalSlides - 1);
+                    break;
+            }
+        });
+
+        // Additional event listener for presentation remote (up/down keys)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp') {
                 handlePrevClick();
-            } else if (e.key === 'ArrowRight' || e.key === ' ') {
+            } else if (e.key === 'ArrowDown') {
                 handleNextClick();
             }
         });
